@@ -1,0 +1,42 @@
+# Mirrors gemini-cli's chained_e2e.yml: runs on workflow_run (BASE context, WITH SECRETS),
+# downloads the artifact, checks out the ATTACKER-CONTROLLED fork ref, and runs project
+# code with a secret in scope. No `environment:` gate, no head_repository == github.repository guard.
+name: PoC Chained
+
+on:
+  workflow_run:
+    workflows: ['PoC Trigger']
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  run-fork-code-with-secret:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download pr artifact from the triggering run
+        uses: actions/download-artifact@v4
+        with:
+          name: pr
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: pr
+
+      - name: Parse attacker-controlled ref
+        id: p
+        run: |
+          echo "repo=$(cat pr/repo)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(cat pr/sha)"  >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the FORK's code (attacker-controlled)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.p.outputs.repo }}
+          ref: ${{ steps.p.outputs.sha }}
+          persist-credentials: false
+
+      - name: Run project script with the secret in scope (like `npm ci`/build/test)
+        env:
+          DEMO_SECRET: ${{ secrets.DEMO_SECRET }}
+        run: bash .poc/run.sh

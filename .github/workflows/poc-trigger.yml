@@ -1,0 +1,23 @@
+# Mirrors gemini-cli's trigger_e2e.yml: runs on fork PRs (fork context, no secrets),
+# saves the fork's head repo + sha into an artifact WITHOUT any fork/origin guard.
+name: PoC Trigger
+
+on:
+  pull_request:
+
+jobs:
+  save-fork-ref:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save fork repo + sha (unconditional, like trigger_e2e.yml)
+        env:
+          REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p pr
+          echo "$REPO" > pr/repo
+          echo "$SHA"  > pr/sha
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr
+          path: pr/
